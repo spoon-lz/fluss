@@ -189,6 +189,8 @@ pub struct ScanBatch {
     batch: RecordBatch,
     /// Offset of the first record in this batch
     base_offset: i64,
+    /// Server-side commit timestamp in milliseconds since epoch.
+    commit_timestamp: i64,
 }
 
 impl ScanBatch {
@@ -197,6 +199,21 @@ impl ScanBatch {
             bucket,
             batch,
             base_offset,
+            commit_timestamp: -1,
+        }
+    }
+
+    pub fn new_with_timestamp(
+        bucket: TableBucket,
+        batch: RecordBatch,
+        base_offset: i64,
+        commit_timestamp: i64,
+    ) -> Self {
+        Self {
+            bucket,
+            batch,
+            base_offset,
+            commit_timestamp,
         }
     }
 
@@ -214,6 +231,11 @@ impl ScanBatch {
 
     pub fn base_offset(&self) -> i64 {
         self.base_offset
+    }
+
+    /// Returns the server-side commit timestamp for this batch.
+    pub fn commit_timestamp(&self) -> i64 {
+        self.commit_timestamp
     }
 
     pub fn num_records(&self) -> usize {
@@ -322,6 +344,11 @@ mod tests {
         let scan_batch = ScanBatch::new(bucket.clone(), batch, 100);
         assert_eq!(scan_batch.num_records(), 3);
         assert_eq!(scan_batch.last_offset(), 102);
+        assert_eq!(scan_batch.commit_timestamp(), -1);
+
+        let timestamped =
+            ScanBatch::new_with_timestamp(bucket.clone(), scan_batch.batch().clone(), 100, 1234);
+        assert_eq!(timestamped.commit_timestamp(), 1234);
 
         // Empty batch -> last_offset = base_offset - 1
         let empty_batch = RecordBatch::new_empty(schema);

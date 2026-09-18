@@ -66,8 +66,10 @@ pub trait CompletedFetch: Send + Sync {
     fn fetch_error_context(&self) -> Option<&FetchErrorContext>;
     fn take_error(&mut self) -> Option<Error>;
     fn fetch_records(&mut self, max_records: usize) -> Result<FetchResult<Vec<ScanRecord>>>;
-    fn fetch_batches(&mut self, max_batches: usize)
-    -> Result<FetchResult<Vec<(RecordBatch, i64)>>>;
+    fn fetch_batches(
+        &mut self,
+        max_batches: usize,
+    ) -> Result<FetchResult<Vec<(RecordBatch, i64, i64)>>>;
     fn is_consumed(&self) -> bool;
     fn records_read(&self) -> usize;
     fn drain(&mut self);
@@ -609,9 +611,8 @@ impl DefaultCompletedFetch {
             source: None,
         }
     }
-    /// Get the next batch with its base offset.
-    /// Returns (RecordBatch, base_offset) where base_offset is the offset of the first record.
-    fn next_fetched_batch(&mut self) -> Result<FetchStep<(RecordBatch, i64)>> {
+    /// Get the next batch with its base offset and commit timestamp.
+    fn next_fetched_batch(&mut self) -> Result<FetchStep<(RecordBatch, i64, i64)>> {
         loop {
             if self.pending_record_batch.is_none() {
                 let Some(log_batch_result) = self.log_record_batch.next() else {
@@ -643,6 +644,7 @@ impl DefaultCompletedFetch {
 
             // Calculate the effective base offset for this batch
             let log_base_offset = log_batch.base_log_offset();
+            let commit_timestamp = log_batch.commit_timestamp();
             let effective_base_offset = if self.next_fetch_offset > log_base_offset {
                 let skip_count = (self.next_fetch_offset - log_base_offset) as usize;
                 if skip_count >= record_batch.num_rows() {
@@ -657,7 +659,11 @@ impl DefaultCompletedFetch {
 
             self.next_fetch_offset = log_batch.next_log_offset();
             self.records_read += record_batch.num_rows();
-            return Ok(FetchStep::InProgress((record_batch, effective_base_offset)));
+            return Ok(FetchStep::InProgress((
+                record_batch,
+                effective_base_offset,
+                commit_timestamp,
+            )));
         }
     }
 
@@ -762,7 +768,7 @@ impl CompletedFetch for DefaultCompletedFetch {
     fn fetch_batches(
         &mut self,
         max_batches: usize,
-    ) -> Result<FetchResult<Vec<(RecordBatch, i64)>>> {
+    ) -> Result<FetchResult<Vec<(RecordBatch, i64, i64)>>> {
         if let Some(error) = self.error.take() {
             return Err(error);
         }
@@ -880,7 +886,7 @@ impl CompletedFetch for RemoteCompletedFetch {
     fn fetch_batches(
         &mut self,
         max_batches: usize,
-    ) -> Result<FetchResult<Vec<(RecordBatch, i64)>>> {
+    ) -> Result<FetchResult<Vec<(RecordBatch, i64, i64)>>> {
         self.inner.fetch_batches(max_batches)
     }
 

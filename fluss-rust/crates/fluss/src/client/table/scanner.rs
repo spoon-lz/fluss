@@ -2340,12 +2340,17 @@ impl LogFetcher {
                             .update_offset(&table_bucket, next_fetch_offset);
                     }
 
-                    // Convert to ScanBatch with bucket info
+                    // Convert to ScanBatch with bucket and log-batch metadata.
                     Ok(FetchResult::Data(
                         batches_with_offsets
                             .into_iter()
-                            .map(|(batch, base_offset)| {
-                                ScanBatch::new(table_bucket.clone(), batch, base_offset)
+                            .map(|(batch, base_offset, commit_timestamp)| {
+                                ScanBatch::new_with_timestamp(
+                                    table_bucket.clone(),
+                                    batch,
+                                    base_offset,
+                                    commit_timestamp,
+                                )
                             })
                             .collect(),
                     ))

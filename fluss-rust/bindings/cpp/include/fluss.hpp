@@ -1405,13 +1405,14 @@ class ArrowRecordBatch {
     int32_t GetBucketId() const;
     int64_t GetBaseOffset() const;
     int64_t GetLastOffset() const;
+    int64_t GetCommitTimestamp() const;
 
    private:
     friend class LogScanner;
     friend struct detail::ArrowBatchImporter;
     explicit ArrowRecordBatch(std::shared_ptr<arrow::RecordBatch> batch, int64_t table_id,
                               int64_t partition_id, int32_t bucket_id,
-                              int64_t base_offset) noexcept;
+                              int64_t base_offset, int64_t commit_timestamp) noexcept;
 
     std::shared_ptr<arrow::RecordBatch> batch_{nullptr};
 
@@ -1419,6 +1420,7 @@ class ArrowRecordBatch {
     int64_t partition_id_;
     int32_t bucket_id_;
     int64_t base_offset_;
+    int64_t commit_timestamp_;
 };
 
 struct ArrowRecordBatches {
