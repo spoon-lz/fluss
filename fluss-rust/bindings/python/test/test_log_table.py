@@ -401,6 +401,7 @@ async def test_poll_batches(connection, admin, wait_for_table_ready):
     batches = await proj_scanner.poll_record_batch(10000)
     assert len(batches) > 0
     assert batches[0].batch.num_columns == 1
+    assert all(batch.commit_timestamp > 0 for batch in batches)
 
     await admin.drop_table(table_path, ignore_if_not_exists=False)
 

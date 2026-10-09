@@ -1027,8 +1027,9 @@ mod tests {
         TableInfo, TablePath,
     };
     use crate::record::{
-        APPEND_ONLY_FLAG_MASK, ATTRIBUTES_OFFSET, LENGTH_LENGTH, LENGTH_OFFSET, LOG_OVERHEAD,
-        MemoryLogRecordsArrowBuilder, RECORDS_OFFSET, ReadContext, to_arrow_schema,
+        APPEND_ONLY_FLAG_MASK, ATTRIBUTES_OFFSET, BASE_OFFSET_OFFSET, COMMIT_TIMESTAMP_OFFSET,
+        LENGTH_LENGTH, LENGTH_OFFSET, LOG_OVERHEAD, MemoryLogRecordsArrowBuilder, RECORDS_OFFSET,
+        ReadContext, to_arrow_schema,
     };
     use crate::row::GenericRow;
     use crate::test_utils::{
@@ -1264,6 +1265,64 @@ mod tests {
         let empty = expect_data(fetch.fetch_records(10)?);
         assert!(empty.is_empty());
 
+        Ok(())
+    }
+
+    #[test]
+    fn fetch_batches_preserves_each_log_batch_timestamp_after_slicing() -> Result<()> {
+        let row_type = RowType::new(vec![DataField::new("id", DataTypes::int(), None)]);
+        let table_path = TablePath::new("db", "tbl");
+        let table_info = Arc::new(build_table_info(table_path.clone(), 1, 1));
+        let physical_path = Arc::new(PhysicalTablePath::of(Arc::new(table_path)));
+        let mut data = Vec::new();
+
+        for (offset, timestamp) in [(0_i64, 1234_i64), (1, 5678)] {
+            let mut builder = MemoryLogRecordsArrowBuilder::new(
+                uncompressed_arrow_batch_config(1, &row_type, usize::MAX),
+                false,
+            )?;
+            let mut row = GenericRow::new(1);
+            row.set_field(0, offset as i32);
+            builder.append(&WriteRecord::for_append(
+                Arc::clone(&table_info),
+                Arc::clone(&physical_path),
+                1,
+                &row,
+            ))?;
+            let mut bytes = builder.build()?;
+            bytes[BASE_OFFSET_OFFSET..BASE_OFFSET_OFFSET + 8]
+                .copy_from_slice(&offset.to_le_bytes());
+            bytes[COMMIT_TIMESTAMP_OFFSET..COMMIT_TIMESTAMP_OFFSET + 8]
+                .copy_from_slice(&timestamp.to_le_bytes());
+            data.extend(bytes);
+        }
+
+        let schema = to_arrow_schema(&row_type)?;
+        let row_type = Arc::new(row_type);
+        let resolver = Arc::new(ReadContextResolver::new(
+            1,
+            Arc::new(ReadContext::new(
+                schema.clone(),
+                Arc::clone(&row_type),
+                false,
+            )),
+            Arc::new(ReadContext::new(schema, row_type, true)),
+            None,
+        ));
+        let mut fetch = DefaultCompletedFetch::new(
+            TableBucket::new(1, 0),
+            LogRecordsBatches::new(data.clone()),
+            data.len(),
+            resolver,
+            false,
+            0,
+            2,
+        );
+
+        let batches = expect_data(fetch.fetch_batches(10)?);
+        assert_eq!(batches.len(), 2);
+        assert_eq!((batches[0].1, batches[0].2), (0, 1234));
+        assert_eq!((batches[1].1, batches[1].2), (1, 5678));
         Ok(())
     }
 

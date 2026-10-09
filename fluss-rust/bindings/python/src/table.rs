@@ -126,7 +126,7 @@ pub struct RecordBatch {
     base_offset: i64,
     #[pyo3(get)]
     last_offset: i64,
-    /// Server-side commit timestamp in milliseconds since epoch.
+    /// Server-side commit timestamp in epoch milliseconds, or -1 if unavailable.
     #[pyo3(get)]
     commit_timestamp: i64,
 }

@@ -1610,6 +1610,9 @@ mod table_test {
         let all_ids =
             poll_until_count(6, DEFAULT_POLL_TIMEOUT, Duration::from_secs(5), async |d| {
                 let batches = scanner.poll(d).await.unwrap();
+                for batch in &batches {
+                    assert!(batch.commit_timestamp() > 0);
+                }
                 extract_ids_from_batches(&batches)
             })
             .await;
@@ -1641,6 +1644,9 @@ mod table_test {
         let trunc_ids =
             poll_until_count(5, DEFAULT_POLL_TIMEOUT, Duration::from_secs(5), async |d| {
                 let trunc_batches = trunc_scanner.poll(d).await.unwrap();
+                for batch in &trunc_batches {
+                    assert!(batch.commit_timestamp() > 0);
+                }
                 extract_ids_from_batches(&trunc_batches)
             })
             .await;
@@ -1668,6 +1674,7 @@ mod table_test {
 
         // Projected batch should have 1 column (id), not 2 (id, name)
         assert_eq!(proj_batches[0].batch().num_columns(), 1);
+        assert!(proj_batches[0].commit_timestamp() > 0);
     }
 
     async fn create_region_partitioned_log_table(admin: &FlussAdmin, table_path: &TablePath) {

@@ -1405,6 +1405,7 @@ class ArrowRecordBatch {
     int32_t GetBucketId() const;
     int64_t GetBaseOffset() const;
     int64_t GetLastOffset() const;
+    // Epoch milliseconds, or -1 when unavailable (e.g. a merged limit scan).
     int64_t GetCommitTimestamp() const;
 
    private:

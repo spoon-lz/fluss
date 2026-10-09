@@ -985,6 +985,7 @@ TEST_F(LogTableTest, TestPollBatches) {
     auto extract_ids = [](const fluss::ArrowRecordBatches& batches) {
         std::vector<int32_t> ids;
         for (const auto& batch : batches) {
+            EXPECT_GT(batch->GetCommitTimestamp(), 0);
             auto arr =
                 std::static_pointer_cast<arrow::Int32Array>(batch->GetArrowRecordBatch()->column(0));
             for (int64_t i = 0; i < arr->length(); ++i) {

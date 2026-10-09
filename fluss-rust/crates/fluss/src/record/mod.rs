@@ -189,7 +189,7 @@ pub struct ScanBatch {
     batch: RecordBatch,
     /// Offset of the first record in this batch
     base_offset: i64,
-    /// Server-side commit timestamp in milliseconds since epoch.
+    /// Server-side commit timestamp in milliseconds since epoch, or -1 when unavailable.
     commit_timestamp: i64,
 }
 
@@ -233,7 +233,9 @@ impl ScanBatch {
         self.base_offset
     }
 
-    /// Returns the server-side commit timestamp for this batch.
+    /// Returns the server-side commit timestamp in milliseconds since epoch.
+    /// Returns -1 when the timestamp is unavailable (for example, for a
+    /// bounded limit scan that may combine multiple log batches).
     pub fn commit_timestamp(&self) -> i64 {
         self.commit_timestamp
     }
