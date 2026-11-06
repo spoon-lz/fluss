@@ -709,34 +709,6 @@ impl LogRecordBatch {
         Ok(LogRecordIterator::Arrow(iterator))
     }
 
-    pub fn records_for_remote_log(&self, read_context: &ReadContext) -> Result<LogRecordIterator> {
-        self.ensure_header_complete()?;
-        if self.record_count() == 0 {
-            return Ok(LogRecordIterator::empty());
-        }
-
-        let (change_types, arrow_data) = self.decode_change_types()?;
-        let record_batch = read_context.record_batch_for_remote_log(arrow_data)?;
-        let log_record_iterator = match record_batch {
-            None => LogRecordIterator::empty(),
-            Some(record_batch) => {
-                let arrow_reader = ArrowReader::new_with_fluss_row_type(
-                    Arc::new(record_batch),
-                    read_context.row_type_arc(),
-                    read_context.fluss_row_type().cloned(),
-                )?;
-                let iterator = ArrowLogRecordIterator::new(
-                    arrow_reader,
-                    self.base_log_offset(),
-                    self.commit_timestamp(),
-                    change_types,
-                )?;
-                LogRecordIterator::Arrow(iterator)
-            }
-        };
-        Ok(log_record_iterator)
-    }
-
     /// Returns the record batch directly without creating an iterator.
     /// This is more efficient when you need the entire batch rather than
     /// iterating row-by-row.
